@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "makoons-command-center": {
+      "command": "npx",
+      "args": ["tsx", "src/mcp/server.ts"]
+    }
+  }
+}

@@ -1,0 +1,33 @@
+---
+description: Always commit finished work and push it to origin
+alwaysApply: true
+---
+
+# Always commit and push
+
+After finishing work that changes files, commit and push in the same turn. Do not wait for the user to ask.
+
+## Do
+
+- Stage the files you changed (and any new files that belong in the repo).
+- Commit with a concise message that says why the change exists.
+- Push the current branch to `origin` with a regular `git push` (use `-u` if the branch has no upstream).
+- If a pre-commit hook edits files, make a new commit with those fixes. Do not amend a commit that was already pushed.
+
+## Do not
+
+- Do not leave finished work uncommitted.
+- Do not commit `.env`, `.env.local`, tokens, keys, or credential files.
+- Do not force-push, skip hooks, or rewrite history unless the user explicitly asks.
+- Do not push to `main`/`master` with `--force`.
+
+## Example
+
+```text
+# ✅ After adding a feature
+git add src/app/page.tsx src/components/coo-checklist.tsx
+git commit -m "Add COO checklist split on Home so Joseph can run today/week/month from one board."
+git push
+
+# ❌ Leave the working tree dirty and only describe the change
+```
