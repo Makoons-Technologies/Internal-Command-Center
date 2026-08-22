@@ -38,13 +38,6 @@ Tools: `list_cards`, `upsert_card`, `complete_card`, `flag_blocker`, `get_needs_
 
 ## Vercel
 
-Local SQLite will not persist on Vercel. Create a [Turso](https://turso.tech) database, then set:
+Production uses Turso via the Vercel Marketplace (`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`). Local stays on `data/makoons.db` unless those vars are set.
 
-```
-TURSO_DATABASE_URL=
-TURSO_AUTH_TOKEN=
-COMMAND_CENTER_TOKEN=
-MCP_SUBDOMAIN_HOST=mcp.your-domain.com
-```
-
-Point the MCP subdomain at the same Vercel project. `MCP_SUBDOMAIN_HOST` rewrites that host to `/api/mcp`.
+`COMMAND_CENTER_TOKEN` gates `/login` and `/api/mcp`. Custom domains / `MCP_SUBDOMAIN_HOST` can wait.

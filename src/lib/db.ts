@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { createClient, type Client, type Row } from "@libsql/client";
+import { createClient as createNodeClient, type Client, type Row } from "@libsql/client";
+import { createClient as createWebClient } from "@libsql/client/web";
 import { checklistWindow } from "@/lib/checklist";
 import { nowISO, todayISO } from "@/lib/dates";
 import { sortByUpdatedAtDesc, sortNeedsJoseph } from "@/lib/filters";
@@ -36,14 +37,13 @@ export function getClient(): Client {
   if (clientSingleton) return clientSingleton;
 
   const url = databaseUrl();
+  const authToken = process.env.TURSO_AUTH_TOKEN;
   if (url.startsWith("file:")) {
     mkdirSync(path.dirname(url.slice("file:".length)), { recursive: true });
+    clientSingleton = createNodeClient({ url });
+  } else {
+    clientSingleton = createWebClient({ url, authToken });
   }
-
-  clientSingleton = createClient({
-    url,
-    authToken: process.env.TURSO_AUTH_TOKEN,
-  });
   return clientSingleton;
 }
 
