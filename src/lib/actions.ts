@@ -1,20 +1,30 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { BOARD_COOKIE, getCommandCenterToken } from "@/lib/auth";
+import {
+  BOARD_PIN,
+  clearPinGuard,
+  getPinGuard,
+  MAX_PIN_FAILS,
+  PIN_LOCK_MS,
+  setBoardSession,
+  setPinGuard,
+} from "@/lib/auth";
 import {
   addChecklistItem,
   applyChecklistOrder,
   completeCard,
   deleteChecklistItem,
+  deletePromptTemplate,
   flagBlocker,
   getCard,
   toggleChecklistItem,
   updateChecklistItem,
   upsertCard,
+  upsertPromptTemplate,
 } from "@/lib/db";
+import type { PromptTemplateInput } from "@/lib/prompt-template";
 
 function refreshBoard() {
   revalidatePath("/", "layout");
@@ -73,18 +83,36 @@ export async function reorderChecklistAction(
   return items;
 }
 
+export async function savePromptTemplateAction(input: PromptTemplateInput) {
+  const template = await upsertPromptTemplate(input);
+  refreshBoard();
+  return template;
+}
+
+export async function deletePromptTemplateAction(id: string) {
+  await deletePromptTemplate(id);
+  refreshBoard();
+}
+
 export async function loginAction(formData: FormData) {
-  const token = getCommandCenterToken();
-  const submitted = String(formData.get("token") ?? "");
-  if (!token || submitted !== token) {
+  const now = Date.now();
+  const guard = await getPinGuard();
+  if (guard.lockedUntil > now) {
+    redirect("/login?error=locked");
+  }
+
+  const pin = String(formData.get("pin") ?? "").trim();
+  if (pin !== BOARD_PIN) {
+    const fails = guard.fails + 1;
+    if (fails >= MAX_PIN_FAILS) {
+      await setPinGuard({ fails: 0, lockedUntil: now + PIN_LOCK_MS });
+      redirect("/login?error=locked");
+    }
+    await setPinGuard({ fails, lockedUntil: 0 });
     redirect("/login?error=1");
   }
-  const jar = await cookies();
-  jar.set(BOARD_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-  });
+
+  await clearPinGuard();
+  await setBoardSession();
   redirect("/");
 }

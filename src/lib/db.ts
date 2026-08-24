@@ -6,6 +6,11 @@ import { checklistWindow } from "@/lib/checklist";
 import { nowISO, todayISO } from "@/lib/dates";
 import { sortByUpdatedAtDesc, sortNeedsJoseph } from "@/lib/filters";
 import {
+  parsePromptTemplate,
+  type PromptTemplate,
+  type PromptTemplateInput,
+} from "@/lib/prompt-template";
+import {
   parseCommandCard,
   type ChecklistItem,
   type CommandCard,
@@ -88,6 +93,7 @@ async function initialize(client: Client): Promise<void> {
       createdAt TEXT NOT NULL
     )
   `);
+    await ensurePromptTemplatesTable(client);
     await seedIfEmpty();
     await seedChecklistIfEmpty();
   } finally {
@@ -421,6 +427,118 @@ export async function deleteChecklistItem(id: string): Promise<void> {
   const client = await ensureReady();
   await client.execute({
     sql: "DELETE FROM checklist WHERE id = ?",
+    args: [id],
+  });
+}
+
+async function ensurePromptTemplatesTable(client: Client): Promise<void> {
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS prompt_templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      body TEXT NOT NULL,
+      parameters TEXT NOT NULL,
+      rows TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      createdAt TEXT NOT NULL
+    )
+  `);
+}
+
+function rowToPromptTemplate(row: Row): PromptTemplate {
+  let parameters: unknown = [];
+  let rows: unknown = [];
+  try {
+    parameters = JSON.parse(String(row.parameters ?? "[]"));
+  } catch {
+    parameters = [];
+  }
+  try {
+    rows = JSON.parse(String(row.rows ?? "[]"));
+  } catch {
+    rows = [];
+  }
+  return parsePromptTemplate({
+    id: String(row.id),
+    name: String(row.name),
+    body: String(row.body),
+    parameters,
+    rows,
+    updatedAt: String(row.updatedAt),
+    createdAt: String(row.createdAt),
+  });
+}
+
+async function persistPromptTemplate(template: PromptTemplate): Promise<void> {
+  const client = await ensureReady();
+  await ensurePromptTemplatesTable(client);
+  await client.execute({
+    sql: `INSERT INTO prompt_templates (
+        id, name, body, parameters, rows, updatedAt, createdAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name,
+        body = excluded.body,
+        parameters = excluded.parameters,
+        rows = excluded.rows,
+        updatedAt = excluded.updatedAt`,
+    args: [
+      template.id,
+      template.name,
+      template.body,
+      JSON.stringify(template.parameters),
+      JSON.stringify(template.rows),
+      template.updatedAt,
+      template.createdAt,
+    ],
+  });
+}
+
+export async function getPromptTemplate(
+  id: string,
+): Promise<PromptTemplate | null> {
+  const client = await ensureReady();
+  await ensurePromptTemplatesTable(client);
+  const result = await client.execute({
+    sql: "SELECT * FROM prompt_templates WHERE id = ?",
+    args: [id],
+  });
+  const row = result.rows[0];
+  return row ? rowToPromptTemplate(row) : null;
+}
+
+export async function listPromptTemplates(): Promise<PromptTemplate[]> {
+  const client = await ensureReady();
+  await ensurePromptTemplatesTable(client);
+  const result = await client.execute(
+    "SELECT * FROM prompt_templates ORDER BY updatedAt DESC",
+  );
+  return result.rows.map(rowToPromptTemplate);
+}
+
+export async function upsertPromptTemplate(
+  input: PromptTemplateInput,
+): Promise<PromptTemplate> {
+  const existing = input.id ? await getPromptTemplate(input.id) : null;
+  const now = nowISO();
+  const template = parsePromptTemplate({
+    id: existing?.id ?? input.id ?? crypto.randomUUID(),
+    name: input.name,
+    body: input.body,
+    parameters: input.parameters,
+    rows: input.rows ?? existing?.rows ?? [],
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  });
+  await persistPromptTemplate(template);
+  return (await getPromptTemplate(template.id)) as PromptTemplate;
+}
+
+export async function deletePromptTemplate(id: string): Promise<void> {
+  const client = await ensureReady();
+  await ensurePromptTemplatesTable(client);
+  await client.execute({
+    sql: "DELETE FROM prompt_templates WHERE id = ?",
     args: [id],
   });
 }

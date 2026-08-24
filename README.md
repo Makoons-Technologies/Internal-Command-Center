@@ -34,10 +34,10 @@ Tools: `list_cards`, `upsert_card`, `complete_card`, `flag_blocker`, `get_needs_
 ## What to give the COO
 
 1. **Board URL:** `https://YOUR_DOMAIN`
-2. **The same `COMMAND_CENTER_TOKEN`** — they paste it on `/login`
+2. **Board PIN `9119`** — they enter it on `/login`. Three wrong tries lock the form for one minute.
 
 ## Vercel
 
 Production uses Turso via the Vercel Marketplace (`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`). Local stays on `data/makoons.db` unless those vars are set.
 
-`COMMAND_CENTER_TOKEN` gates `/login` and `/api/mcp`. Custom domains / `MCP_SUBDOMAIN_HOST` can wait.
+The board PIN gates `/login`. `COMMAND_CENTER_TOKEN` still gates `/api/mcp`. Custom domains / `MCP_SUBDOMAIN_HOST` can wait.
