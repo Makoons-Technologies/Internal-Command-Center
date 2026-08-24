@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import {
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -21,18 +22,82 @@ import {
   normalizeParamName,
   parseVariantList,
   removeParameter,
+  rowTitle,
+  rowValues,
+  TITLE_KEY,
   variantLabel,
   type PromptTemplate,
 } from "@/lib/prompt-template";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
+function BoardSelect({
+  label,
+  value,
+  onValueChange,
+  options,
+  className,
+}: {
+  label: string;
+  value: string;
+  onValueChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  className?: string;
+}) {
+  const current =
+    options.find((option) => option.value === value)?.label ?? options[0]?.label;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label={label}
+          className={cn("min-w-48 justify-between", className)}
+        >
+          <span className="truncate">{current}</span>
+          <ChevronDown className="size-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="bg-card text-card-foreground"
+      >
+        {options.map((option) => (
+          <DropdownMenuItem
+            key={option.value}
+            onClick={() => onValueChange(option.value)}
+          >
+            {option.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 type Phase = "edit" | "cycle";
+
+function splitList(text: string): string[] {
+  const lines = text.split(/\r?\n/);
+  while (lines.length > 0 && !lines[lines.length - 1]?.trim()) {
+    lines.pop();
+  }
+  return lines.map((line) => line.trim());
+}
 
 function rowsToLists(
   rows: Record<string, string>[],
@@ -46,24 +111,30 @@ function rowsToLists(
   );
 }
 
+function rowsToTitles(rows: Record<string, string>[]): string {
+  return rows.map((row) => rowTitle(row)).join("\n");
+}
+
 function listsToRows(
   lists: Record<string, string>,
   parameters: string[],
+  titlesText = "",
 ): Record<string, string>[] {
-  const columns = parameters.map((name) => {
-    const lines = (lists[name] ?? "").split(/\r?\n/);
-    while (lines.length > 0 && !lines[lines.length - 1]?.trim()) {
-      lines.pop();
-    }
-    return lines.map((line) => line.trim());
-  });
-  const height = Math.max(0, ...columns.map((column) => column.length));
+  const titleLines = splitList(titlesText);
+  const columns = parameters.map((name) => splitList(lists[name] ?? ""));
+  const height = Math.max(
+    0,
+    titleLines.length,
+    ...columns.map((column) => column.length),
+  );
   const rows: Record<string, string>[] = [];
   for (let index = 0; index < height; index += 1) {
     const row: Record<string, string> = {};
     parameters.forEach((name, columnIndex) => {
       row[name] = columns[columnIndex][index] ?? "";
     });
+    const title = titleLines[index] ?? "";
+    if (title) row[TITLE_KEY] = title;
     rows.push(row);
   }
   return compactRows(rows);
@@ -74,8 +145,9 @@ function blankDraft(): {
   name: string;
   body: string;
   lists: Record<string, string>;
+  titles: string;
 } {
-  return { name: "", body: "", lists: {} };
+  return { name: "", body: "", lists: {}, titles: "" };
 }
 
 export function PromptTemplateTool({
@@ -95,17 +167,25 @@ export function PromptTemplateTool({
 
   const parameters = useMemo(() => extractParameters(draft.body), [draft.body]);
   const selectedId = draft.id ?? "";
-  const filled = fillTemplate(draft.body, variants[cycleIndex] ?? {});
+  const currentValues = rowValues(variants[cycleIndex] ?? {});
+  const filled =
+    Object.keys(currentValues).length > 0
+      ? fillTemplate(draft.body, currentValues)
+      : draft.body;
 
   function loadTemplate(template: PromptTemplate) {
+    const rows = compactRows(template.rows);
     setDraft({
       id: template.id,
       name: template.name,
       body: template.body,
       lists: rowsToLists(template.rows, template.parameters),
+      titles: rowsToTitles(template.rows),
     });
     setCombinedPaste("");
-    setPhase("edit");
+    setVariants(rows.length > 0 ? rows : [{}]);
+    setCycleIndex(0);
+    setPhase("cycle");
     setError("");
     setCopied(false);
   }
@@ -157,10 +237,14 @@ export function PromptTemplateTool({
   }
 
   function collectRows(): Record<string, string>[] {
-    const fromLists = listsToRows(draft.lists, parameters);
+    const fromLists = listsToRows(draft.lists, parameters, draft.titles);
     if (fromLists.length > 0) return fromLists;
     if (combinedPaste.trim() && parameters.length > 0) {
-      return parseVariantList(combinedPaste, parameters);
+      return listsToRows(
+        rowsToLists(parseVariantList(combinedPaste, parameters), parameters),
+        parameters,
+        draft.titles,
+      );
     }
     return [];
   }
@@ -175,6 +259,7 @@ export function PromptTemplateTool({
       setDraft((current) => ({
         ...current,
         lists: { ...current.lists, ...rowsToLists(rows, parameters) },
+        titles: rowsToTitles(rows),
       }));
     }
     setVariants(parameters.length === 0 ? [{}] : rows);
@@ -248,28 +333,24 @@ export function PromptTemplateTool({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              aria-label="Saved templates"
-              className={cn(
-                "h-8 min-w-48 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none",
-                "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30",
-              )}
+            <BoardSelect
+              label="Saved templates"
               value={selectedId}
-              onChange={(event) => {
+              onValueChange={(nextId) => {
                 const next = templates.find(
-                  (template) => template.id === event.target.value,
+                  (template) => template.id === nextId,
                 );
                 if (next) loadTemplate(next);
                 else resetNew();
               }}
-            >
-              <option value="">New template</option>
-              {templates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "New template" },
+                ...templates.map((template) => ({
+                  value: template.id,
+                  label: template.name,
+                })),
+              ]}
+            />
             <Button type="button" variant="outline" size="sm" onClick={resetNew}>
               New
             </Button>
@@ -366,11 +447,27 @@ export function PromptTemplateTool({
                     Matching lists
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    One value per line. Line 1 of each list fills the first
+                    One value per line. Titles are a parallel list and appear
+                    in the copy dropdown. Line 1 of each list fills the first
                     copy, line 2 the next, and so on.
                   </p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="prompt-list-titles">Dropdown titles</Label>
+                    <Textarea
+                      id="prompt-list-titles"
+                      value={draft.titles}
+                      placeholder={"Austin LinkedIn\nDallas Instagram"}
+                      className="min-h-28 font-mono text-sm"
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          titles: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
                   {parameters.map((name) => (
                     <div key={name} className="flex flex-col gap-1.5">
                       <Label htmlFor={`prompt-list-${name}`}>{`{{${name}}}`}</Label>
@@ -500,21 +597,16 @@ function CycleView({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          aria-label="Filled prompt"
-          className={cn(
-            "h-8 min-w-56 flex-1 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none",
-            "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30",
-          )}
+        <BoardSelect
+          label="Filled prompt"
+          className="min-w-56 flex-1"
           value={String(cycleIndex)}
-          onChange={(event) => onSelect(Number(event.target.value))}
-        >
-          {variants.map((row, index) => (
-            <option key={`${index}-${variantLabel(row, index)}`} value={index}>
-              {variantLabel(row, index)}
-            </option>
-          ))}
-        </select>
+          onValueChange={(next) => onSelect(Number(next))}
+          options={variants.map((row, index) => ({
+            value: String(index),
+            label: variantLabel(row, index),
+          }))}
+        />
         <Button
           type="button"
           variant="outline"
@@ -538,9 +630,12 @@ function CycleView({
         </span>
       </div>
 
-      {current && Object.keys(current).length > 0 ? (
+      {current && Object.keys(rowValues(current)).length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          {Object.entries(current).map(([key, value]) => (
+          {rowTitle(current) ? (
+            <Badge variant="secondary">{rowTitle(current)}</Badge>
+          ) : null}
+          {Object.entries(rowValues(current)).map(([key, value]) => (
             <Badge key={key} variant="outline">
               {key}: {value || "—"}
             </Badge>
@@ -564,7 +659,7 @@ function CycleView({
           {copied ? "Copied" : "Copy"}
         </Button>
         <Button type="button" variant="outline" onClick={onEdit}>
-          Edit
+          Modify
         </Button>
         <Button
           type="button"

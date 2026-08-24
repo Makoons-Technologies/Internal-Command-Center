@@ -289,7 +289,7 @@ export function CooChecklist({
               <ChevronDown className="size-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="bg-card text-card-foreground">
             {(Object.keys(VIEW_LABELS) as ChecklistView[]).map((option) => (
               <DropdownMenuItem key={option} onClick={() => setView(option)}>
                 {VIEW_LABELS[option]}

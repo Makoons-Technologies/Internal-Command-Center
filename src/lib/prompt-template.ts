@@ -68,8 +68,27 @@ export function fillTemplate(
   return body.replace(PARAM_TOKEN, (_, name: string) => values[name] ?? "");
 }
 
+export const TITLE_KEY = "__title";
+
 export function emptyRow(parameters: string[]): Record<string, string> {
   return Object.fromEntries(parameters.map((name) => [name, ""]));
+}
+
+function cellString(value: unknown): string {
+  return typeof value === "string" ? value : value == null ? "" : String(value);
+}
+
+export function rowTitle(row: Record<string, string>): string {
+  return (row[TITLE_KEY] ?? "").trim();
+}
+
+export function rowValues(row: Record<string, string>): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (key === TITLE_KEY) continue;
+    values[key] = value;
+  }
+  return values;
 }
 
 export function reshapeRows(
@@ -79,15 +98,21 @@ export function reshapeRows(
   return rows.map((row) => {
     const next: Record<string, string> = {};
     for (const name of parameters) {
-      const value = row[name];
-      next[name] = typeof value === "string" ? value : value == null ? "" : String(value);
+      next[name] = cellString(row[name]);
     }
+    const title = cellString(row[TITLE_KEY]);
+    if (title.trim()) next[TITLE_KEY] = title.trim();
     return next;
   });
 }
 
 export function isBlankRow(row: Record<string, string>): boolean {
-  return Object.values(row).every((value) => !value.trim());
+  return (
+    !rowTitle(row) &&
+    Object.entries(row)
+      .filter(([key]) => key !== TITLE_KEY)
+      .every(([, value]) => !value.trim())
+  );
 }
 
 export function compactRows(
@@ -139,8 +164,11 @@ export function variantLabel(
   row: Record<string, string>,
   index: number,
 ): string {
-  const bits = Object.values(row)
-    .map((value) => value.trim())
+  const title = rowTitle(row);
+  if (title) return title;
+  const bits = Object.entries(row)
+    .filter(([key]) => key !== TITLE_KEY)
+    .map(([, value]) => value.trim())
     .filter(Boolean);
   const preview = bits.slice(0, 2).join(" · ");
   return preview ? `${index + 1}. ${preview}` : `Item ${index + 1}`;
