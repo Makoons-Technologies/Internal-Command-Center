@@ -40,6 +40,17 @@ export function SidebarNav() {
 
       <div className="flex flex-col gap-1">
         <p className="px-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          Sales
+        </p>
+        <NavLink
+          href="/businesses"
+          label="Businesses"
+          active={pathname === "/businesses"}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <p className="px-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Horizons
         </p>
         {HORIZONS.map((horizon) => (

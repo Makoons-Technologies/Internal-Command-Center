@@ -1,18 +1,24 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import {
+  addBusinessNote,
   addChecklistItem,
   applyChecklistOrder,
   completeCard,
   deleteChecklistItem,
   flagBlocker,
   getNeedsJoseph,
+  listBusinesses,
   listCards,
   listChecklistItems,
+  setBusinessGreenlight,
+  setBusinessReminder,
   toggleChecklistItem,
   updateChecklistItem,
+  upsertBusiness,
   upsertCard,
 } from "../lib/db";
+import { BUSINESS_STATUSES, BUSINESS_TYPES } from "../lib/business";
 import { CADENCES, CARD_STATUSES, CHECKLIST_VIEWS, FUNCTION_OWNERS } from "../lib/schema";
 import { endOfMonth, endOfWeek, startOfMonth, startOfWeek, todayISO } from "../lib/dates";
 
@@ -20,6 +26,9 @@ const ownerSchema = z.enum(FUNCTION_OWNERS);
 const statusSchema = z.enum(CARD_STATUSES);
 const cadenceSchema = z.enum(CADENCES);
 const viewSchema = z.enum(CHECKLIST_VIEWS);
+const businessTypeSchema = z.enum(BUSINESS_TYPES);
+const businessStatusSchema = z.enum(BUSINESS_STATUSES);
+const reminderFilterSchema = z.enum(["overdue", "today"]);
 
 function jsonResult(data: unknown) {
   return {
@@ -46,7 +55,7 @@ function rangeForView(view?: (typeof CHECKLIST_VIEWS)[number]) {
 export function createCommandCenterServer(): McpServer {
   const server = new McpServer({
     name: "makoons-command-center",
-    version: "0.2.0",
+    version: "0.3.0",
   });
 
   server.registerTool(
@@ -273,6 +282,125 @@ export function createCommandCenterServer(): McpServer {
     async ({ updates }) => {
       try {
         return jsonResult(await applyChecklistOrder(updates));
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "list_businesses",
+    {
+      description:
+        "List Springfield-area sales businesses. Filter by tags (all must match), overdue/today reminders, greenlit, status, or type.",
+      inputSchema: z.object({
+        tags: z
+          .array(z.string())
+          .optional()
+          .describe("Match businesses that have every listed tag"),
+        reminder: reminderFilterSchema
+          .optional()
+          .describe("overdue = reminderAt in the past; today = America/Chicago calendar day"),
+        greenlit: z.boolean().optional(),
+        status: businessStatusSchema.optional(),
+        type: businessTypeSchema.optional(),
+      }),
+    },
+    async (args) => {
+      try {
+        return jsonResult(await listBusinesses(args));
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "upsert_business",
+    {
+      description:
+        "Create or update a sales business. Auto-greenlights when name, address, phone, and type are present and status is target. Pass null to clear optional fields.",
+      inputSchema: z.object({
+        business: z.object({
+          id: z.string().optional(),
+          name: z.string(),
+          type: businessTypeSchema,
+          address: z.string().nullable().optional(),
+          city: z.string().nullable().optional(),
+          phone: z.string().nullable().optional(),
+          website: z.string().nullable().optional(),
+          instagram: z.string().nullable().optional(),
+          tags: z.array(z.string()).optional(),
+          status: businessStatusSchema.optional(),
+          reminderAt: z
+            .string()
+            .nullable()
+            .optional()
+            .describe("ISO-8601 datetime; interpret reminders in America/Chicago"),
+          reminderNote: z.string().nullable().optional(),
+        }),
+      }),
+    },
+    async ({ business }) => {
+      try {
+        return jsonResult(await upsertBusiness(business));
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "add_business_note",
+    {
+      description: "Append a timestamped note to a sales business.",
+      inputSchema: z.object({
+        id: z.string(),
+        body: z.string(),
+      }),
+    },
+    async ({ id, body }) => {
+      try {
+        return jsonResult(await addBusinessNote(id, body));
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "set_business_reminder",
+    {
+      description:
+        "Set or clear a follow-up reminder. reminderAt is ISO-8601 (America/Chicago for display). Pass null to clear.",
+      inputSchema: z.object({
+        id: z.string(),
+        reminderAt: z.string().nullable().optional(),
+        reminderNote: z.string().nullable().optional(),
+      }),
+    },
+    async ({ id, reminderAt, reminderNote }) => {
+      try {
+        return jsonResult(await setBusinessReminder(id, reminderAt, reminderNote));
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "set_business_greenlight",
+    {
+      description:
+        "Manually mark a business go-in (greenlit=true) or turn greenlight off. Manual go-in does not require enough-data.",
+      inputSchema: z.object({
+        id: z.string(),
+        greenlit: z.boolean(),
+      }),
+    },
+    async ({ id, greenlit }) => {
+      try {
+        return jsonResult(await setBusinessGreenlight(id, greenlit));
       } catch (error) {
         return errorResult(error);
       }
