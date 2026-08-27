@@ -370,6 +370,19 @@ export function fromChicagoDateTimeLocal(local: string): string {
     }
     return parsed.toISOString();
   }
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?:\s*(AM|PM))?)?$/i.exec(
+    trimmed,
+  );
+  if (us) {
+    let hour = Number(us[4] ?? 9);
+    const minute = Number(us[5] ?? 0);
+    const meridiem = us[6]?.toUpperCase();
+    if (meridiem === "PM" && hour < 12) hour += 12;
+    if (meridiem === "AM" && hour === 12) hour = 0;
+    return fromChicagoDateTimeLocal(
+      `${us[3]}-${us[1].padStart(2, "0")}-${us[2].padStart(2, "0")}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+    );
+  }
   const dateOnly = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(trimmed);
   if (dateOnly) {
     return fromChicagoDateTimeLocal(
