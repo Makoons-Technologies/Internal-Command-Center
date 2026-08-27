@@ -355,7 +355,30 @@ export function toChicagoDateTimeLocal(iso: string): string {
 }
 
 export function fromChicagoDateTimeLocal(local: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(local);
+  const trimmed = local.trim();
+  if (!trimmed) {
+    throw new Error("Reminder must be YYYY-MM-DDTHH:mm in America/Chicago");
+  }
+  if (
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(
+      trimmed,
+    )
+  ) {
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new Error("Reminder datetime is invalid");
+    }
+    return parsed.toISOString();
+  }
+  const dateOnly = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(trimmed);
+  if (dateOnly) {
+    return fromChicagoDateTimeLocal(
+      `${dateOnly[1]}-${dateOnly[2].padStart(2, "0")}-${dateOnly[3].padStart(2, "0")}T09:00`,
+    );
+  }
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})[T ](\d{1,2}):(\d{2})/.exec(
+    trimmed,
+  );
   if (!match) {
     throw new Error("Reminder must be YYYY-MM-DDTHH:mm in America/Chicago");
   }

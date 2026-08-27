@@ -199,6 +199,7 @@ export function BusinessBoard({ businesses }: { businesses: SalesBusiness[] }) {
   const [reminderId, setReminderId] = useState<string | null>(null);
   const [reminderAt, setReminderAt] = useState("");
   const [reminderNote, setReminderNote] = useState("");
+  const [actionError, setActionError] = useState("");
   const [pending, startTransition] = useTransition();
 
   const tags = useMemo(() => collectBusinessTags(businesses), [businesses]);
@@ -253,6 +254,7 @@ export function BusinessBoard({ businesses }: { businesses: SalesBusiness[] }) {
       business.reminderAt ? toChicagoDateTimeLocal(business.reminderAt) : "",
     );
     setReminderNote(business.reminderNote ?? "");
+    setActionError("");
     setReminderOpen(true);
   }
 
@@ -286,12 +288,19 @@ export function BusinessBoard({ businesses }: { businesses: SalesBusiness[] }) {
   function saveReminder() {
     if (!reminderId) return;
     startTransition(async () => {
-      await setBusinessReminderAction(
-        reminderId,
-        reminderAt ? fromChicagoDateTimeLocal(reminderAt) : null,
-        reminderNote.trim() ? reminderNote.trim() : null,
-      );
-      setReminderOpen(false);
+      try {
+        await setBusinessReminderAction(
+          reminderId,
+          reminderAt ? fromChicagoDateTimeLocal(reminderAt) : null,
+          reminderNote.trim() ? reminderNote.trim() : null,
+        );
+        setActionError("");
+        setReminderOpen(false);
+      } catch (error) {
+        setActionError(
+          error instanceof Error ? error.message : "Could not save reminder",
+        );
+      }
     });
   }
 
@@ -786,6 +795,11 @@ export function BusinessBoard({ businesses }: { businesses: SalesBusiness[] }) {
                 placeholder="call after 2"
               />
             </div>
+            {actionError ? (
+              <p className="text-sm text-destructive" role="alert">
+                {actionError}
+              </p>
+            ) : null}
           </div>
           <DialogFooter>
             <Button
