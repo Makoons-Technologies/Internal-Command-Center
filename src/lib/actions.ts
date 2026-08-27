@@ -12,6 +12,7 @@ import {
   setPinGuard,
 } from "@/lib/auth";
 import {
+  addBusinessNote,
   addChecklistItem,
   applyChecklistOrder,
   completeCard,
@@ -19,11 +20,15 @@ import {
   deletePromptTemplate,
   flagBlocker,
   getCard,
+  setBusinessGreenlight,
+  setBusinessReminder,
   toggleChecklistItem,
   updateChecklistItem,
+  upsertBusiness,
   upsertCard,
   upsertPromptTemplate,
 } from "@/lib/db";
+import type { UpsertBusinessInput } from "@/lib/business";
 import type { PromptTemplateInput } from "@/lib/prompt-template";
 
 function refreshBoard() {
@@ -92,6 +97,34 @@ export async function savePromptTemplateAction(input: PromptTemplateInput) {
 export async function deletePromptTemplateAction(id: string) {
   await deletePromptTemplate(id);
   refreshBoard();
+}
+
+export async function upsertBusinessAction(input: UpsertBusinessInput) {
+  const business = await upsertBusiness(input);
+  refreshBoard();
+  return business;
+}
+
+export async function addBusinessNoteAction(id: string, body: string) {
+  const business = await addBusinessNote(id, body);
+  refreshBoard();
+  return business;
+}
+
+export async function setBusinessReminderAction(
+  id: string,
+  reminderAt?: string | null,
+  reminderNote?: string | null,
+) {
+  const business = await setBusinessReminder(id, reminderAt, reminderNote);
+  refreshBoard();
+  return business;
+}
+
+export async function setBusinessGreenlightAction(id: string, greenlit: boolean) {
+  const business = await setBusinessGreenlight(id, greenlit);
+  refreshBoard();
+  return business;
 }
 
 export async function loginAction(formData: FormData) {

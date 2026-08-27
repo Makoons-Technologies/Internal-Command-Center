@@ -2,6 +2,18 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createClient as createNodeClient, type Client, type Row } from "@libsql/client";
 import { createClient as createWebClient } from "@libsql/client/web";
+import {
+  filterBusinesses,
+  parseNotes,
+  parseSalesBusiness,
+  resolveGreenlight,
+  slugifyBusinessId,
+  sortBusinesses,
+  type ListBusinessesFilter,
+  type SalesBusiness,
+  type UpsertBusinessInput,
+} from "@/lib/business";
+import { SEED_BUSINESSES } from "@/lib/business-seed";
 import { checklistWindow } from "@/lib/checklist";
 import { nowISO, todayISO } from "@/lib/dates";
 import { sortByUpdatedAtDesc, sortNeedsJoseph } from "@/lib/filters";
@@ -94,8 +106,10 @@ async function initialize(client: Client): Promise<void> {
     )
   `);
     await ensurePromptTemplatesTable(client);
+    await ensureBusinessesTable(client);
     await seedIfEmpty();
     await seedChecklistIfEmpty();
+    await seedBusinessesIfEmpty();
   } finally {
     initializing = false;
   }
@@ -556,4 +570,316 @@ export async function applyChecklistOrder(
     })),
   );
   return listChecklistItems();
+}
+
+async function ensureBusinessesTable(client: Client): Promise<void> {
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS businesses (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      address TEXT,
+      city TEXT,
+      phone TEXT,
+      website TEXT,
+      instagram TEXT,
+      tags TEXT NOT NULL,
+      notes TEXT NOT NULL,
+      reminderAt TEXT,
+      reminderNote TEXT,
+      status TEXT NOT NULL,
+      greenlit INTEGER NOT NULL,
+      greenlitReason TEXT,
+      updatedAt TEXT NOT NULL,
+      createdAt TEXT NOT NULL
+    )
+  `);
+}
+
+function rowToBusiness(row: Row): SalesBusiness {
+  let tags: unknown = [];
+  let notes: unknown = [];
+  try {
+    tags = JSON.parse(String(row.tags ?? "[]"));
+  } catch {
+    tags = [];
+  }
+  try {
+    notes = JSON.parse(String(row.notes ?? "[]"));
+  } catch {
+    notes = [];
+  }
+  return parseSalesBusiness({
+    id: String(row.id),
+    name: String(row.name),
+    type: String(row.type),
+    address: row.address ? String(row.address) : undefined,
+    city: row.city ? String(row.city) : undefined,
+    phone: row.phone ? String(row.phone) : undefined,
+    website: row.website ? String(row.website) : undefined,
+    instagram: row.instagram ? String(row.instagram) : undefined,
+    tags,
+    notes,
+    reminderAt: row.reminderAt ? String(row.reminderAt) : undefined,
+    reminderNote: row.reminderNote ? String(row.reminderNote) : undefined,
+    status: String(row.status),
+    greenlit: Boolean(row.greenlit),
+    greenlitReason: row.greenlitReason ? String(row.greenlitReason) : undefined,
+    updatedAt: String(row.updatedAt),
+    createdAt: String(row.createdAt),
+  });
+}
+
+async function persistBusiness(business: SalesBusiness): Promise<void> {
+  const client = await ensureReady();
+  await ensureBusinessesTable(client);
+  await client.execute({
+    sql: `INSERT INTO businesses (
+        id, name, type, address, city, phone, website, instagram,
+        tags, notes, reminderAt, reminderNote, status, greenlit,
+        greenlitReason, updatedAt, createdAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name,
+        type = excluded.type,
+        address = excluded.address,
+        city = excluded.city,
+        phone = excluded.phone,
+        website = excluded.website,
+        instagram = excluded.instagram,
+        tags = excluded.tags,
+        notes = excluded.notes,
+        reminderAt = excluded.reminderAt,
+        reminderNote = excluded.reminderNote,
+        status = excluded.status,
+        greenlit = excluded.greenlit,
+        greenlitReason = excluded.greenlitReason,
+        updatedAt = excluded.updatedAt`,
+    args: [
+      business.id,
+      business.name,
+      business.type,
+      business.address ?? null,
+      business.city ?? null,
+      business.phone ?? null,
+      business.website ?? null,
+      business.instagram ?? null,
+      JSON.stringify(business.tags),
+      JSON.stringify(business.notes),
+      business.reminderAt ?? null,
+      business.reminderNote ?? null,
+      business.status,
+      business.greenlit ? 1 : 0,
+      business.greenlitReason ?? null,
+      business.updatedAt,
+      business.createdAt,
+    ],
+  });
+}
+
+function mergeOptional(
+  incoming: string | null | undefined,
+  existing?: string,
+): string | undefined {
+  if (incoming === null) return undefined;
+  if (incoming !== undefined) {
+    const trimmed = incoming.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  return existing;
+}
+
+async function uniqueBusinessId(name: string): Promise<string> {
+  const base = slugifyBusinessId(name);
+  if (!(await getBusiness(base))) return base;
+  return `${base}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+export async function getBusiness(id: string): Promise<SalesBusiness | null> {
+  const client = await ensureReady();
+  await ensureBusinessesTable(client);
+  const result = await client.execute({
+    sql: "SELECT * FROM businesses WHERE id = ?",
+    args: [id],
+  });
+  const row = result.rows[0];
+  return row ? rowToBusiness(row) : null;
+}
+
+export async function listAllBusinesses(): Promise<SalesBusiness[]> {
+  const client = await ensureReady();
+  await ensureBusinessesTable(client);
+  const result = await client.execute("SELECT * FROM businesses");
+  return sortBusinesses(result.rows.map(rowToBusiness));
+}
+
+export async function listBusinesses(
+  filter: ListBusinessesFilter = {},
+): Promise<SalesBusiness[]> {
+  return sortBusinesses(filterBusinesses(await listAllBusinesses(), filter));
+}
+
+export async function upsertBusiness(
+  input: UpsertBusinessInput,
+): Promise<SalesBusiness> {
+  const existing = input.id ? await getBusiness(input.id) : null;
+  const now = nowISO();
+  const nextFields = {
+    name: input.name.trim(),
+    type: input.type,
+    address: mergeOptional(input.address, existing?.address),
+    phone: mergeOptional(input.phone, existing?.phone),
+    status: input.status ?? existing?.status ?? ("target" as const),
+    greenlit: existing?.greenlit ?? false,
+    greenlitReason: existing?.greenlitReason,
+  };
+  const greenlight = resolveGreenlight(nextFields, existing);
+
+  const business = parseSalesBusiness({
+    id: existing?.id ?? input.id ?? (await uniqueBusinessId(input.name)),
+    name: nextFields.name,
+    type: nextFields.type,
+    address: nextFields.address,
+    city: mergeOptional(input.city, existing?.city),
+    phone: nextFields.phone,
+    website: mergeOptional(input.website, existing?.website),
+    instagram: mergeOptional(input.instagram, existing?.instagram),
+    tags: input.tags !== undefined ? input.tags : existing?.tags ?? [],
+    notes: existing?.notes ?? [],
+    reminderAt:
+      input.reminderAt !== undefined
+        ? mergeOptional(input.reminderAt)
+        : existing?.reminderAt,
+    reminderNote:
+      input.reminderNote !== undefined
+        ? mergeOptional(input.reminderNote)
+        : existing?.reminderNote,
+    status: nextFields.status,
+    greenlit: greenlight.greenlit,
+    greenlitReason: greenlight.greenlitReason,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  });
+
+  await persistBusiness(business);
+  return (await getBusiness(business.id)) as SalesBusiness;
+}
+
+export async function addBusinessNote(
+  id: string,
+  body: string,
+): Promise<SalesBusiness> {
+  const existing = await getBusiness(id);
+  if (!existing) {
+    throw new Error(`Business not found: ${id}`);
+  }
+  const trimmed = body.trim();
+  if (!trimmed) {
+    throw new Error("Note body is required");
+  }
+  const now = nowISO();
+  const business = parseSalesBusiness({
+    ...existing,
+    notes: parseNotes([
+      ...existing.notes,
+      { id: crypto.randomUUID(), body: trimmed, createdAt: now },
+    ]),
+    updatedAt: now,
+  });
+  await persistBusiness(business);
+  return (await getBusiness(id)) as SalesBusiness;
+}
+
+export async function setBusinessReminder(
+  id: string,
+  reminderAt?: string | null,
+  reminderNote?: string | null,
+): Promise<SalesBusiness> {
+  const existing = await getBusiness(id);
+  if (!existing) {
+    throw new Error(`Business not found: ${id}`);
+  }
+  const now = nowISO();
+  const business = parseSalesBusiness({
+    ...existing,
+    reminderAt: reminderAt === null ? undefined : reminderAt ?? existing.reminderAt,
+    reminderNote:
+      reminderNote === null ? undefined : reminderNote ?? existing.reminderNote,
+    updatedAt: now,
+  });
+  await persistBusiness(business);
+  return (await getBusiness(id)) as SalesBusiness;
+}
+
+export async function setBusinessGreenlight(
+  id: string,
+  greenlit: boolean,
+): Promise<SalesBusiness> {
+  const existing = await getBusiness(id);
+  if (!existing) {
+    throw new Error(`Business not found: ${id}`);
+  }
+  const resolved = resolveGreenlight(existing, existing, greenlit);
+  const now = nowISO();
+  const business = parseSalesBusiness({
+    ...existing,
+    greenlit: resolved.greenlit,
+    greenlitReason: resolved.greenlitReason,
+    updatedAt: now,
+  });
+  await persistBusiness(business);
+  return (await getBusiness(id)) as SalesBusiness;
+}
+
+export async function seedCanonicalBusinesses(): Promise<SalesBusiness[]> {
+  const seeded: SalesBusiness[] = [];
+  for (const input of SEED_BUSINESSES) {
+    const existing = await getBusiness(input.id);
+    const now = nowISO();
+    const notes = existing?.notes?.length
+      ? existing.notes
+      : input.note
+        ? [{ id: `${input.id}-seed-note`, body: input.note, createdAt: now }]
+        : [];
+    const nextFields = {
+      name: input.name,
+      type: input.type,
+      address: input.address,
+      phone: input.phone,
+      status: input.status,
+      greenlit: existing?.greenlit ?? false,
+      greenlitReason: existing?.greenlitReason,
+    };
+    const greenlight = resolveGreenlight(nextFields, existing);
+    const business = parseSalesBusiness({
+      id: input.id,
+      name: input.name,
+      type: input.type,
+      address: input.address,
+      city: input.city,
+      phone: input.phone,
+      website: input.website,
+      instagram: input.instagram,
+      tags: input.tags,
+      notes,
+      reminderAt: existing?.reminderAt,
+      reminderNote: existing?.reminderNote,
+      status: input.status,
+      greenlit: greenlight.greenlit,
+      greenlitReason: greenlight.greenlitReason,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    });
+    await persistBusiness(business);
+    seeded.push((await getBusiness(input.id)) as SalesBusiness);
+  }
+  return seeded;
+}
+
+export async function seedBusinessesIfEmpty(): Promise<SalesBusiness[]> {
+  const client = getClient();
+  await ensureBusinessesTable(client);
+  const result = await client.execute("SELECT COUNT(*) AS count FROM businesses");
+  if (Number(result.rows[0]?.count ?? 0) > 0) return [];
+  return seedCanonicalBusinesses();
 }
