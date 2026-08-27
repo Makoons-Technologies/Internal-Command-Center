@@ -28,7 +28,7 @@ import {
   upsertCard,
   upsertPromptTemplate,
 } from "@/lib/db";
-import type { UpsertBusinessInput } from "@/lib/business";
+import { fromChicagoDateTimeLocal, type UpsertBusinessInput } from "@/lib/business";
 import type { PromptTemplateInput } from "@/lib/prompt-template";
 
 function refreshBoard() {
@@ -116,7 +116,13 @@ export async function setBusinessReminderAction(
   reminderAt?: string | null,
   reminderNote?: string | null,
 ) {
-  const business = await setBusinessReminder(id, reminderAt, reminderNote);
+  const parsed =
+    reminderAt === null || reminderAt === undefined || reminderAt === ""
+      ? reminderAt ?? null
+      : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(reminderAt)
+        ? reminderAt
+        : fromChicagoDateTimeLocal(reminderAt);
+  const business = await setBusinessReminder(id, parsed, reminderNote);
   refreshBoard();
   return business;
 }

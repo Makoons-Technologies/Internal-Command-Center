@@ -355,9 +355,9 @@ export function toChicagoDateTimeLocal(iso: string): string {
 }
 
 export function fromChicagoDateTimeLocal(local: string): string {
-  const trimmed = local.trim();
+  const trimmed = local.trim().replace(/,/g, "");
   if (!trimmed) {
-    throw new Error("Reminder must be YYYY-MM-DDTHH:mm in America/Chicago");
+    throw new Error("Reminder datetime is empty");
   }
   if (
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(
@@ -366,7 +366,7 @@ export function fromChicagoDateTimeLocal(local: string): string {
   ) {
     const parsed = new Date(trimmed);
     if (Number.isNaN(parsed.getTime())) {
-      throw new Error("Reminder datetime is invalid");
+      throw new Error(`Reminder datetime is invalid: ${trimmed}`);
     }
     return parsed.toISOString();
   }
@@ -376,18 +376,21 @@ export function fromChicagoDateTimeLocal(local: string): string {
       `${dateOnly[1]}-${dateOnly[2].padStart(2, "0")}-${dateOnly[3].padStart(2, "0")}T09:00`,
     );
   }
-  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})[T ](\d{1,2}):(\d{2})/.exec(
-    trimmed,
-  );
+  const match =
+    /^(\d{4})-(\d{1,2})-(\d{1,2})[T t](\d{1,2})(?::(\d{2}))?(?::\d{2}(?:\.\d+)?)?/.exec(
+      trimmed,
+    );
   if (!match) {
-    throw new Error("Reminder must be YYYY-MM-DDTHH:mm in America/Chicago");
+    throw new Error(
+      `Reminder must be YYYY-MM-DDTHH:mm in America/Chicago (got ${JSON.stringify(trimmed)})`,
+    );
   }
   const wanted = {
     year: Number(match[1]),
     month: Number(match[2]),
     day: Number(match[3]),
     hour: Number(match[4]),
-    minute: Number(match[5]),
+    minute: Number(match[5] ?? 0),
   };
   let utc = Date.UTC(
     wanted.year,

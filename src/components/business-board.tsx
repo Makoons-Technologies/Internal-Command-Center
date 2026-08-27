@@ -19,7 +19,6 @@ import {
   collectBusinessTags,
   filterBusinesses,
   formatChicagoDateTime,
-  fromChicagoDateTimeLocal,
   instagramLabel,
   instagramUrl,
   isReminderOverdue,
@@ -291,7 +290,7 @@ export function BusinessBoard({ businesses }: { businesses: SalesBusiness[] }) {
       try {
         await setBusinessReminderAction(
           reminderId,
-          reminderAt ? fromChicagoDateTimeLocal(reminderAt) : null,
+          reminderAt || null,
           reminderNote.trim() ? reminderNote.trim() : null,
         );
         setActionError("");
@@ -782,6 +781,7 @@ export function BusinessBoard({ businesses }: { businesses: SalesBusiness[] }) {
               <Input
                 id="reminder-at"
                 type="datetime-local"
+                step={60}
                 value={reminderAt}
                 onChange={(event) => setReminderAt(event.target.value)}
               />
