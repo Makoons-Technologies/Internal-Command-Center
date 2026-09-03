@@ -34,8 +34,13 @@ export function SidebarNav() {
 
   return (
     <nav className="flex flex-col gap-5 text-sm">
-      <div>
+      <div className="flex flex-col gap-1">
         <NavLink href="/" label="Home" active={pathname === "/"} />
+        <NavLink
+          href="/recurring"
+          label="Recurring"
+          active={pathname === "/recurring"}
+        />
       </div>
 
       <div className="flex flex-col gap-1">

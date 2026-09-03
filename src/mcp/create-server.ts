@@ -5,6 +5,7 @@ import {
   addChecklistItem,
   applyChecklistOrder,
   completeCard,
+  deleteCard,
   deleteChecklistItem,
   flagBlocker,
   getNeedsJoseph,
@@ -147,6 +148,24 @@ export function createCommandCenterServer(): McpServer {
     async ({ id, reason, needsJoseph }) => {
       try {
         return jsonResult(await flagBlocker(id, reason, needsJoseph ?? true));
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "delete_card",
+    {
+      description:
+        "Remove a card from the Command Center store. Also removes a linked recurring checklist row if one exists.",
+      inputSchema: z.object({
+        id: z.string(),
+      }),
+    },
+    async ({ id }) => {
+      try {
+        return jsonResult(await deleteCard(id));
       } catch (error) {
         return errorResult(error);
       }

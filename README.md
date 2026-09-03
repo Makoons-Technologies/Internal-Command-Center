@@ -29,7 +29,7 @@ Grok connects over HTTP MCP, not stdio.
 2. **Header:** `Authorization: Bearer COMMAND_CENTER_TOKEN`
 3. **Access:** every tool — cards, the COO checklist, and sales businesses
 
-Tools: `list_cards`, `upsert_card`, `complete_card`, `flag_blocker`, `get_needs_joseph`, `list_checklist`, `add_checklist_item`, `update_checklist_item`, `toggle_checklist_item`, `delete_checklist_item`, `reorder_checklist`, `list_businesses`, `upsert_business`, `add_business_note`, `set_business_reminder`, `set_business_greenlight`.
+Tools: `list_cards`, `upsert_card`, `complete_card`, `delete_card`, `flag_blocker`, `get_needs_joseph`, `list_checklist`, `add_checklist_item`, `update_checklist_item`, `toggle_checklist_item`, `delete_checklist_item`, `reorder_checklist`, `list_businesses`, `upsert_business`, `add_business_note`, `set_business_reminder`, `set_business_greenlight`.
 
 ## What to give the COO
 
