@@ -16,20 +16,25 @@ import {
   addChecklistItem,
   applyChecklistOrder,
   completeCard,
+  deleteCard,
   deleteChecklistItem,
   deletePromptTemplate,
+  ensureRecurringChecklist,
   flagBlocker,
   getCard,
   setBusinessGreenlight,
   setBusinessReminder,
   toggleChecklistItem,
+  uniqueCardId,
   updateChecklistItem,
   upsertBusiness,
   upsertCard,
   upsertPromptTemplate,
 } from "@/lib/db";
 import { fromChicagoDateTimeLocal, type UpsertBusinessInput } from "@/lib/business";
+import { RECURRING_SOURCE_AGENT } from "@/lib/recurring";
 import type { PromptTemplateInput } from "@/lib/prompt-template";
+import type { UpsertCardInput } from "@/lib/schema";
 
 function refreshBoard() {
   revalidatePath("/", "layout");
@@ -55,6 +60,26 @@ export async function updateNextStepAction(id: string, nextStep: string) {
     nextStep,
   });
   refreshBoard();
+}
+
+export async function upsertRecurringCardAction(
+  input: Omit<UpsertCardInput, "id"> & { id?: string },
+) {
+  const id = input.id ?? (await uniqueCardId(input.title));
+  const card = await upsertCard({
+    ...input,
+    id,
+    sourceAgent: input.sourceAgent ?? RECURRING_SOURCE_AGENT,
+  });
+  await ensureRecurringChecklist(card);
+  refreshBoard();
+  return card;
+}
+
+export async function deleteCardAction(id: string) {
+  const card = await deleteCard(id);
+  refreshBoard();
+  return card;
 }
 
 export async function addChecklistItemAction(title: string, plannedDate: string) {

@@ -23,6 +23,12 @@ import {
   type PromptTemplateInput,
 } from "@/lib/prompt-template";
 import {
+  isRecurringCadence,
+  plannedDateForCadence,
+  recurringChecklistId,
+  slugifyCardId,
+} from "@/lib/recurring";
+import {
   parseCommandCard,
   type ChecklistItem,
   type CommandCard,
@@ -286,7 +292,76 @@ export async function upsertCard(
   });
 
   await persistCard(card);
+  await syncExistingRecurringChecklist(card);
   return (await getCard(card.id)) as CommandCard;
+}
+
+export async function uniqueCardId(title: string): Promise<string> {
+  const base = slugifyCardId(title);
+  if (!(await getCard(base))) return base;
+  return `${base}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+async function syncExistingRecurringChecklist(card: CommandCard): Promise<void> {
+  const linkedId = recurringChecklistId(card.id);
+  const existing = await getChecklistItem(linkedId);
+  if (!existing) return;
+  if (!isRecurringCadence(card.cadence)) {
+    await deleteChecklistItem(linkedId);
+    return;
+  }
+  await updateChecklistItem(linkedId, {
+    title: card.title,
+    plannedDate: plannedDateForCadence(card.cadence),
+  });
+}
+
+export async function ensureRecurringChecklist(
+  card: CommandCard,
+): Promise<ChecklistItem | null> {
+  const linkedId = recurringChecklistId(card.id);
+  if (!isRecurringCadence(card.cadence)) {
+    await deleteChecklistItem(linkedId);
+    return null;
+  }
+
+  const plannedDate = plannedDateForCadence(card.cadence);
+  const existing = await getChecklistItem(linkedId);
+  if (existing) {
+    return updateChecklistItem(linkedId, { title: card.title, plannedDate });
+  }
+
+  const client = await ensureReady();
+  const max = await client.execute({
+    sql: "SELECT COALESCE(MAX(sortOrder), -1) AS maxOrder FROM checklist WHERE plannedDate = ?",
+    args: [plannedDate],
+  });
+  const now = nowISO();
+  const item: ChecklistItem = {
+    id: linkedId,
+    title: card.title,
+    done: false,
+    plannedDate,
+    sortOrder: Number(max.rows[0]?.maxOrder ?? -1) + 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await persistChecklist(item);
+  return item;
+}
+
+export async function deleteCard(id: string): Promise<CommandCard> {
+  const existing = await getCard(id);
+  if (!existing) {
+    throw new Error(`Card not found: ${id}`);
+  }
+  const client = await ensureReady();
+  await client.execute({
+    sql: "DELETE FROM cards WHERE id = ?",
+    args: [id],
+  });
+  await deleteChecklistItem(recurringChecklistId(id));
+  return existing;
 }
 
 export async function completeCard(id: string, note?: string): Promise<CommandCard> {

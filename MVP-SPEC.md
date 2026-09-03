@@ -79,6 +79,12 @@ Tabs or segmented control:
 
 Cards may appear in more than one view if rules overlap; prefer listing once under the tightest matching horizon.
 
+### 4.2.1 Recurring
+
+Dedicated route `/recurring` for repeatable work only (`cadence` daily / weekly / monthly). Grouped by cadence. One-off (`cadence: once`) cards stay on Today / function lanes and are not treated as templates.
+
+Add, edit cadence, and remove on this page write the same `cards` store (and MCP `upsert_card` / `delete_card` / `list_cards` cadence filter). Linked COO checklist rows use id `recurring:<cardId>` so today / weekly / monthly checklist views stay in sync. Do not invent a second database.
+
 ### 4.3 Function sections and card types
 
 #### eng
