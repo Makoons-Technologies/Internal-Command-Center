@@ -24,7 +24,7 @@ export function CommandCardView({ card }: { card: CommandCard }) {
             <Badge variant="outline">{card.owner}</Badge>
             <Badge variant="outline">{card.cadence}</Badge>
             <Badge variant={STATUS_VARIANT[card.status]}>{card.status}</Badge>
-            {card.needsJoseph ? <Badge>needsJoseph</Badge> : null}
+            {card.needsJoseph ? <Badge variant="joseph">needs Joseph</Badge> : null}
           </div>
         </div>
       </CardHeader>

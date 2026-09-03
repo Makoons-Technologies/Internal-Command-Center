@@ -207,9 +207,11 @@ function Section({
 export function CooChecklist({
   items: initialItems,
   today = todayISO(),
+  hideHeading = false,
 }: {
   items: ChecklistItem[];
   today?: string;
+  hideHeading?: boolean;
 }) {
   const [view, setView] = useState<ChecklistView>("today");
   const [items, setItems] = useState(initialItems);
@@ -281,7 +283,13 @@ export function CooChecklist({
   return (
     <section className="flex min-h-0 flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium tracking-wide uppercase">COO checklist</h2>
+        {hideHeading ? (
+          <p className="text-sm text-muted-foreground">Today, week, or month</p>
+        ) : (
+          <h2 className="text-sm font-medium tracking-wide uppercase">
+            COO checklist
+          </h2>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="sm" variant="outline">
