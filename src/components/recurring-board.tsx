@@ -54,9 +54,9 @@ const STATUS_VARIANT: Record<
 };
 
 const CADENCE_COPY: Record<RecurringCadence, string> = {
-  daily: "Shows on Today and the COO today list.",
-  weekly: "Shows on Week and the COO weekly list.",
-  monthly: "Shows on Month and the COO monthly list.",
+  daily: "Today + COO today list",
+  weekly: "Week + COO weekly list",
+  monthly: "Month + COO monthly list",
 };
 
 type RecurringFormState = {
