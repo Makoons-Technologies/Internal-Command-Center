@@ -9,6 +9,7 @@ import {
   CalendarRange,
   ClipboardList,
   Code2,
+  Columns3,
   Handshake,
   House,
   LifeBuoy,
@@ -147,6 +148,14 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
       </NavGroup>
 
       <NavGroup label="Sales">
+        <NavItem
+          href="/sales"
+          label="Pipeline"
+          blurb="Deals board"
+          icon={Columns3}
+          active={pathname === "/sales" || pathname.startsWith("/sales/")}
+          onNavigate={onNavigate}
+        />
         <NavItem
           href="/businesses"
           label="Businesses"

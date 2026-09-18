@@ -177,6 +177,9 @@ export function businessMatchesQuery(
     business.type,
     business.city,
     business.status,
+    business.pipelineStage,
+    business.contactName,
+    business.dealNote,
     business.reminderNote,
     ...business.tags,
   ]);

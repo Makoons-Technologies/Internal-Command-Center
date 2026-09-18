@@ -13,6 +13,14 @@ import {
   type SalesBusiness,
   type UpsertBusinessInput,
 } from "@/lib/business";
+import {
+  mergePipelineLabels,
+  PIPELINE_LABELS_KEY,
+  parseDealValue,
+  statusFromStage,
+  stageFromStatus,
+  type PipelineStage,
+} from "@/lib/pipeline";
 import { SEED_BUSINESSES } from "@/lib/business-seed";
 import { checklistWindow } from "@/lib/checklist";
 import { nowISO, todayISO } from "@/lib/dates";
@@ -112,6 +120,7 @@ async function initialize(client: Client): Promise<void> {
     )
   `);
     await ensurePromptTemplatesTable(client);
+    await ensureSettingsTable(client);
     await ensureBusinessesTable(client);
     await seedIfEmpty();
     await seedChecklistIfEmpty();
@@ -647,6 +656,27 @@ export async function applyChecklistOrder(
   return listChecklistItems();
 }
 
+async function ensureSettingsTable(client: Client): Promise<void> {
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    )
+  `);
+}
+
+async function addColumnIfMissing(
+  client: Client,
+  table: string,
+  column: string,
+  definition: string,
+): Promise<void> {
+  const info = await client.execute(`PRAGMA table_info(${table})`);
+  if (info.rows.some((row) => String(row.name) === column)) return;
+  await client.execute(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+}
+
 async function ensureBusinessesTable(client: Client): Promise<void> {
   await client.execute(`
     CREATE TABLE IF NOT EXISTS businesses (
@@ -663,12 +693,20 @@ async function ensureBusinessesTable(client: Client): Promise<void> {
       reminderAt TEXT,
       reminderNote TEXT,
       status TEXT NOT NULL,
+      pipelineStage TEXT,
+      dealValue REAL,
+      contactName TEXT,
+      dealNote TEXT,
       greenlit INTEGER NOT NULL,
       greenlitReason TEXT,
       updatedAt TEXT NOT NULL,
       createdAt TEXT NOT NULL
     )
   `);
+  await addColumnIfMissing(client, "businesses", "pipelineStage", "pipelineStage TEXT");
+  await addColumnIfMissing(client, "businesses", "dealValue", "dealValue REAL");
+  await addColumnIfMissing(client, "businesses", "contactName", "contactName TEXT");
+  await addColumnIfMissing(client, "businesses", "dealNote", "dealNote TEXT");
 }
 
 function rowToBusiness(row: Row): SalesBusiness {
@@ -698,6 +736,13 @@ function rowToBusiness(row: Row): SalesBusiness {
     reminderAt: row.reminderAt ? String(row.reminderAt) : undefined,
     reminderNote: row.reminderNote ? String(row.reminderNote) : undefined,
     status: String(row.status),
+    pipelineStage: row.pipelineStage ? String(row.pipelineStage) : undefined,
+    dealValue:
+      row.dealValue === null || row.dealValue === undefined
+        ? undefined
+        : Number(row.dealValue),
+    contactName: row.contactName ? String(row.contactName) : undefined,
+    dealNote: row.dealNote ? String(row.dealNote) : undefined,
     greenlit: Boolean(row.greenlit),
     greenlitReason: row.greenlitReason ? String(row.greenlitReason) : undefined,
     updatedAt: String(row.updatedAt),
@@ -711,9 +756,10 @@ async function persistBusiness(business: SalesBusiness): Promise<void> {
   await client.execute({
     sql: `INSERT INTO businesses (
         id, name, type, address, city, phone, website, instagram,
-        tags, notes, reminderAt, reminderNote, status, greenlit,
-        greenlitReason, updatedAt, createdAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        tags, notes, reminderAt, reminderNote, status, pipelineStage,
+        dealValue, contactName, dealNote, greenlit, greenlitReason,
+        updatedAt, createdAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         type = excluded.type,
@@ -727,6 +773,10 @@ async function persistBusiness(business: SalesBusiness): Promise<void> {
         reminderAt = excluded.reminderAt,
         reminderNote = excluded.reminderNote,
         status = excluded.status,
+        pipelineStage = excluded.pipelineStage,
+        dealValue = excluded.dealValue,
+        contactName = excluded.contactName,
+        dealNote = excluded.dealNote,
         greenlit = excluded.greenlit,
         greenlitReason = excluded.greenlitReason,
         updatedAt = excluded.updatedAt`,
@@ -744,6 +794,10 @@ async function persistBusiness(business: SalesBusiness): Promise<void> {
       business.reminderAt ?? null,
       business.reminderNote ?? null,
       business.status,
+      business.pipelineStage ?? null,
+      business.dealValue ?? null,
+      business.contactName ?? null,
+      business.dealNote ?? null,
       business.greenlit ? 1 : 0,
       business.greenlitReason ?? null,
       business.updatedAt,
@@ -799,16 +853,32 @@ export async function upsertBusiness(
 ): Promise<SalesBusiness> {
   const existing = input.id ? await getBusiness(input.id) : null;
   const now = nowISO();
+  const status = input.status ?? existing?.status ?? ("target" as const);
+  let pipelineStage = existing?.pipelineStage;
+  if (input.pipelineStage) {
+    pipelineStage = input.pipelineStage;
+  } else if (input.status && input.status !== existing?.status) {
+    pipelineStage = stageFromStatus(input.status);
+  } else if (!pipelineStage) {
+    pipelineStage = stageFromStatus(status);
+  }
+  const nextStatus = input.pipelineStage
+    ? (input.status ?? statusFromStage(input.pipelineStage))
+    : status;
   const nextFields = {
     name: input.name.trim(),
     type: input.type,
     address: mergeOptional(input.address, existing?.address),
     phone: mergeOptional(input.phone, existing?.phone),
-    status: input.status ?? existing?.status ?? ("target" as const),
+    status: nextStatus,
     greenlit: existing?.greenlit ?? false,
     greenlitReason: existing?.greenlitReason,
   };
-  const greenlight = resolveGreenlight(nextFields, existing);
+  const greenlight = resolveGreenlight(
+    nextFields,
+    existing,
+    pipelineStage === "won" ? true : undefined,
+  );
 
   const business = parseSalesBusiness({
     id: existing?.id ?? input.id ?? (await uniqueBusinessId(input.name)),
@@ -830,6 +900,21 @@ export async function upsertBusiness(
         ? mergeOptional(input.reminderNote)
         : existing?.reminderNote,
     status: nextFields.status,
+    pipelineStage,
+    dealValue:
+      input.dealValue !== undefined
+        ? input.dealValue === null
+          ? undefined
+          : parseDealValue(input.dealValue)
+        : existing?.dealValue,
+    contactName:
+      input.contactName !== undefined
+        ? mergeOptional(input.contactName)
+        : existing?.contactName,
+    dealNote:
+      input.dealNote !== undefined
+        ? mergeOptional(input.dealNote)
+        : existing?.dealNote,
     greenlit: greenlight.greenlit,
     greenlitReason: greenlight.greenlitReason,
     createdAt: existing?.createdAt ?? now,
@@ -940,6 +1025,10 @@ export async function seedCanonicalBusinesses(): Promise<SalesBusiness[]> {
       reminderAt: existing?.reminderAt,
       reminderNote: existing?.reminderNote,
       status: input.status,
+      pipelineStage: existing?.pipelineStage ?? stageFromStatus(input.status),
+      dealValue: existing?.dealValue,
+      contactName: existing?.contactName,
+      dealNote: existing?.dealNote,
       greenlit: greenlight.greenlit,
       greenlitReason: greenlight.greenlitReason,
       createdAt: existing?.createdAt ?? now,
@@ -957,4 +1046,71 @@ export async function seedBusinessesIfEmpty(): Promise<SalesBusiness[]> {
   const result = await client.execute("SELECT COUNT(*) AS count FROM businesses");
   if (Number(result.rows[0]?.count ?? 0) > 0) return [];
   return seedCanonicalBusinesses();
+}
+
+export async function setBusinessPipelineStage(
+  id: string,
+  stage: PipelineStage,
+): Promise<SalesBusiness> {
+  const existing = await getBusiness(id);
+  if (!existing) {
+    throw new Error(`Business not found: ${id}`);
+  }
+  const status = statusFromStage(stage);
+  const greenlight = resolveGreenlight(
+    { ...existing, status },
+    existing,
+    stage === "won" ? true : undefined,
+  );
+  const now = nowISO();
+  const business = parseSalesBusiness({
+    ...existing,
+    pipelineStage: stage,
+    status,
+    greenlit: greenlight.greenlit,
+    greenlitReason: greenlight.greenlitReason,
+    updatedAt: now,
+  });
+  await persistBusiness(business);
+  return (await getBusiness(id)) as SalesBusiness;
+}
+
+async function getSettingJson(key: string): Promise<unknown> {
+  const client = await ensureReady();
+  await ensureSettingsTable(client);
+  const result = await client.execute({
+    sql: "SELECT value FROM app_settings WHERE key = ?",
+    args: [key],
+  });
+  const raw = result.rows[0]?.value;
+  if (raw === undefined || raw === null) return null;
+  try {
+    return JSON.parse(String(raw));
+  } catch {
+    return null;
+  }
+}
+
+async function setSettingJson(key: string, value: unknown): Promise<void> {
+  const client = await ensureReady();
+  await ensureSettingsTable(client);
+  await client.execute({
+    sql: `INSERT INTO app_settings (key, value, updatedAt) VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt`,
+    args: [key, JSON.stringify(value), nowISO()],
+  });
+}
+
+export async function getPipelineLabels(): Promise<
+  Record<PipelineStage, string>
+> {
+  return mergePipelineLabels(await getSettingJson(PIPELINE_LABELS_KEY));
+}
+
+export async function savePipelineLabels(
+  labels: Partial<Record<PipelineStage, string>>,
+): Promise<Record<PipelineStage, string>> {
+  const next = mergePipelineLabels({ ...(await getPipelineLabels()), ...labels });
+  await setSettingJson(PIPELINE_LABELS_KEY, next);
+  return next;
 }
