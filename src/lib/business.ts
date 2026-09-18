@@ -1,3 +1,5 @@
+import { isPipelineStage, parseDealValue, type PipelineStage } from "@/lib/pipeline";
+
 export const BUSINESS_TYPES = [
   "nails",
   "spa",
@@ -55,6 +57,13 @@ export interface SalesBusiness {
   reminderAt?: string;
   reminderNote?: string;
   status: BusinessStatus;
+  /** Kanban column. When omitted, derived from status so old rows still map. */
+  pipelineStage?: PipelineStage;
+  /** Optional USD amount. Empty is fine for Viselle walk-in shops. */
+  dealValue?: number;
+  contactName?: string;
+  /** Next-step / contact note on the pipeline card. Does not replace notes[]. */
+  dealNote?: string;
   greenlit: boolean;
   greenlitReason?: GreenlitReason;
   updatedAt: string;
@@ -72,6 +81,10 @@ export type UpsertBusinessInput = {
   instagram?: string | null;
   tags?: string[];
   status?: BusinessStatus;
+  pipelineStage?: PipelineStage | null;
+  dealValue?: number | null;
+  contactName?: string | null;
+  dealNote?: string | null;
   reminderAt?: string | null;
   reminderNote?: string | null;
 };
@@ -272,6 +285,17 @@ export function parseSalesBusiness(value: unknown): SalesBusiness {
   if (isGreenlitReason(raw.greenlitReason)) {
     business.greenlitReason = raw.greenlitReason;
   }
+
+  if (isPipelineStage(raw.pipelineStage)) {
+    business.pipelineStage = raw.pipelineStage;
+  }
+  if (raw.dealValue !== undefined && raw.dealValue !== null && raw.dealValue !== "") {
+    business.dealValue = parseDealValue(raw.dealValue);
+  }
+  const contactName = optionalTrim(raw.contactName);
+  const dealNote = optionalTrim(raw.dealNote);
+  if (contactName) business.contactName = contactName;
+  if (dealNote) business.dealNote = dealNote;
 
   return business;
 }

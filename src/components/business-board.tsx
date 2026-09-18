@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   AtSign,
   ExternalLink,
@@ -326,10 +327,15 @@ export function BusinessBoard({ businesses }: { businesses: SalesBusiness[] }) {
             overdue · {todayCount} today
           </p>
         </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus data-icon="inline-start" />
-          Add business
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" asChild>
+            <Link href="/sales">Pipeline</Link>
+          </Button>
+          <Button size="sm" onClick={openCreate}>
+            <Plus data-icon="inline-start" />
+            Add business
+          </Button>
+        </div>
       </div>
 
       <section className="flex flex-col gap-3 rounded-lg border px-3 py-3">

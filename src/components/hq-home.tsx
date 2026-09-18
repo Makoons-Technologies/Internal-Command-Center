@@ -258,14 +258,22 @@ function SalesSnapshot({
   return (
     <HqPanel
       title="Sales snapshot"
-      hint="Greenlit shops and due reminders only — no invented pipeline."
+      hint="Greenlit shops and due reminders. Move deals on the pipeline board."
       action={
-        <Link
-          href="/businesses"
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          All shops
-        </Link>
+        <span className="flex items-center gap-3">
+          <Link
+            href="/sales"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Pipeline
+          </Link>
+          <Link
+            href="/businesses"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            All shops
+          </Link>
+        </span>
       }
     >
       <div className="mb-3 flex flex-wrap gap-2 text-sm">

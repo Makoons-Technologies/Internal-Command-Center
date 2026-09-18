@@ -22,7 +22,9 @@ import {
   ensureRecurringChecklist,
   flagBlocker,
   getCard,
+  savePipelineLabels,
   setBusinessGreenlight,
+  setBusinessPipelineStage,
   setBusinessReminder,
   toggleChecklistItem,
   uniqueCardId,
@@ -32,6 +34,7 @@ import {
   upsertPromptTemplate,
 } from "@/lib/db";
 import { fromChicagoDateTimeLocal, type UpsertBusinessInput } from "@/lib/business";
+import type { PipelineStage } from "@/lib/pipeline";
 import { RECURRING_SOURCE_AGENT } from "@/lib/recurring";
 import type { PromptTemplateInput } from "@/lib/prompt-template";
 import type { UpsertCardInput } from "@/lib/schema";
@@ -156,6 +159,23 @@ export async function setBusinessGreenlightAction(id: string, greenlit: boolean)
   const business = await setBusinessGreenlight(id, greenlit);
   refreshBoard();
   return business;
+}
+
+export async function setBusinessPipelineStageAction(
+  id: string,
+  stage: PipelineStage,
+) {
+  const business = await setBusinessPipelineStage(id, stage);
+  refreshBoard();
+  return business;
+}
+
+export async function savePipelineLabelsAction(
+  labels: Partial<Record<PipelineStage, string>>,
+) {
+  const next = await savePipelineLabels(labels);
+  refreshBoard();
+  return next;
 }
 
 export async function loginAction(formData: FormData) {

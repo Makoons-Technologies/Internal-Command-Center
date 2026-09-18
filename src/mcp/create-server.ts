@@ -20,6 +20,7 @@ import {
   upsertCard,
 } from "../lib/db";
 import { BUSINESS_STATUSES, BUSINESS_TYPES } from "../lib/business";
+import { PIPELINE_STAGES } from "../lib/pipeline";
 import { CADENCES, CARD_STATUSES, CHECKLIST_VIEWS, FUNCTION_OWNERS } from "../lib/schema";
 import { endOfMonth, endOfWeek, startOfMonth, startOfWeek, todayISO } from "../lib/dates";
 
@@ -29,6 +30,7 @@ const cadenceSchema = z.enum(CADENCES);
 const viewSchema = z.enum(CHECKLIST_VIEWS);
 const businessTypeSchema = z.enum(BUSINESS_TYPES);
 const businessStatusSchema = z.enum(BUSINESS_STATUSES);
+const pipelineStageSchema = z.enum(PIPELINE_STAGES);
 const reminderFilterSchema = z.enum(["overdue", "today"]);
 
 function jsonResult(data: unknown) {
@@ -351,6 +353,24 @@ export function createCommandCenterServer(): McpServer {
           instagram: z.string().nullable().optional(),
           tags: z.array(z.string()).optional(),
           status: businessStatusSchema.optional(),
+          pipelineStage: pipelineStageSchema
+            .nullable()
+            .optional()
+            .describe(
+              "Kanban stage. When set, status is synced (lead/qualified→target, contact-made/proposal→contacted, won→greenlit, hold→hold, skipped/lost→skipped). Existing status still works if omitted.",
+            ),
+          dealValue: z
+            .number()
+            .nonnegative()
+            .nullable()
+            .optional()
+            .describe("Optional USD deal value; null clears"),
+          contactName: z.string().nullable().optional(),
+          dealNote: z
+            .string()
+            .nullable()
+            .optional()
+            .describe("Next-step note on the pipeline card"),
           reminderAt: z
             .string()
             .nullable()
