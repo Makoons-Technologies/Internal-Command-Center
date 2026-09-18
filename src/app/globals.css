@@ -156,20 +156,20 @@ html:has([data-sales-viewport]) body {
   overscroll-behavior-x: contain;
   scrollbar-gutter: stable;
   scrollbar-width: auto;
-  scrollbar-color: color-mix(in oklch, var(--foreground) 40%, transparent)
-    color-mix(in oklch, var(--muted) 80%, transparent);
+  scrollbar-color: color-mix(in oklch, var(--foreground) 55%, transparent)
+    color-mix(in oklch, var(--border) 85%, var(--muted));
 }
 
 .pipeline-h-scroll::-webkit-scrollbar {
-  height: 12px;
+  height: 14px;
 }
 
 .pipeline-h-scroll::-webkit-scrollbar-track {
-  background: color-mix(in oklch, var(--muted) 80%, transparent);
+  background: color-mix(in oklch, var(--border) 70%, var(--muted));
   border-radius: 999px;
 }
 
 .pipeline-h-scroll::-webkit-scrollbar-thumb {
-  background: color-mix(in oklch, var(--foreground) 28%, transparent);
+  background: color-mix(in oklch, var(--foreground) 45%, transparent);
   border-radius: 999px;
 }
