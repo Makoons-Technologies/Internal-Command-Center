@@ -7,11 +7,14 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
+  rectIntersection,
   TouchSensor,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -103,6 +106,14 @@ function stageDropId(stage: PipelineStage) {
   return `stage:${stage}`;
 }
 
+const boardCollision: CollisionDetection = (args) => {
+  const pointerHits = pointerWithin(args);
+  if (pointerHits.length > 0) return pointerHits;
+  const rectHits = rectIntersection(args);
+  if (rectHits.length > 0) return rectHits;
+  return closestCorners(args);
+};
+
 function columnTone(stage: PipelineStage) {
   if (stage === "won") return "border-[color-mix(in_oklch,var(--sage),var(--border)_45%)]";
   if (stage === "lost") {
@@ -134,9 +145,7 @@ function DealCardBody({
           <p className="shrink-0 text-sm tabular-nums text-foreground">
             {formatDealValue(deal.dealValue)}
           </p>
-        ) : (
-          <p className="shrink-0 text-xs text-muted-foreground">—</p>
-        )}
+        ) : null}
       </div>
       {contact ? (
         <p className="mt-1 text-xs text-muted-foreground">{contact}</p>
@@ -192,6 +201,7 @@ function DraggableDealCard({
       )}
       {...attributes}
       {...listeners}
+      role="group"
       onClick={onOpen}
     >
       <DealCardBody deal={deal} labels={labels} />
@@ -260,6 +270,7 @@ function StageColumn({
 
   return (
     <section
+      ref={setNodeRef}
       className={cn(
         "flex w-72 shrink-0 flex-col rounded-2xl border bg-muted/35",
         columnTone(stage),
@@ -307,10 +318,7 @@ function StageColumn({
           </p>
         </div>
       </header>
-      <div
-        ref={setNodeRef}
-        className="flex min-h-48 flex-1 flex-col gap-2 px-2 pb-3"
-      >
+      <div className="flex min-h-48 flex-1 flex-col gap-2 px-2 pb-3">
         {deals.map((deal) => (
           <DraggableDealCard
             key={deal.id}
@@ -496,7 +504,7 @@ export function SalesPipeline({
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={boardCollision}
         onDragStart={handleDragStart}
         onDragCancel={() => {
           setActiveId(null);
