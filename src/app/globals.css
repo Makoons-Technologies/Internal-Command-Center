@@ -141,19 +141,27 @@
   }
 }
 
-/* Always-visible gutter so later pipeline stages stay reachable. */
+/* Sales pipeline: lock the document so the board cannot grow the page. */
+html:has([data-sales-viewport]),
+html:has([data-sales-viewport]) body {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+/* Always-visible gutter at the bottom of the viewport-capped board. */
 .pipeline-h-scroll {
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--foreground) 32%, transparent)
-    color-mix(in oklch, var(--muted) 70%, transparent);
+  scrollbar-width: auto;
+  scrollbar-color: color-mix(in oklch, var(--foreground) 40%, transparent)
+    color-mix(in oklch, var(--muted) 80%, transparent);
 }
 
 .pipeline-h-scroll::-webkit-scrollbar {
-  height: 0.7rem;
+  height: 12px;
 }
 
 .pipeline-h-scroll::-webkit-scrollbar-track {

@@ -320,7 +320,7 @@ function StageColumn({
     <section
       ref={setNodeRef}
       className={cn(
-        "flex h-full min-h-0 w-72 shrink-0 flex-col rounded-2xl border bg-muted/35",
+        "flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden rounded-2xl border bg-muted/35",
         columnTone(stage),
         isOver && "bg-muted/70 ring-2 ring-primary/25",
       )}
@@ -529,7 +529,7 @@ export function SalesPipeline({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-3 overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">
@@ -555,7 +555,7 @@ export function SalesPipeline({
         </div>
       </div>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <DndContext
         sensors={sensors}
         collisionDetection={boardCollision}
@@ -571,9 +571,9 @@ export function SalesPipeline({
           role="region"
           aria-label="Pipeline stages"
           tabIndex={0}
-          className="pipeline-h-scroll -mx-4 flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-1 sm:-mx-6 sm:px-6"
+          className="pipeline-h-scroll -mx-4 h-full min-h-0 min-w-0 flex-1 px-4 sm:-mx-6 sm:px-6"
         >
-          <div className="flex min-h-0 w-max min-w-full flex-1 items-stretch gap-3">
+          <div className="flex h-full w-max min-w-full items-stretch gap-3">
             {PIPELINE_STAGES.map((stage) => (
               <StageColumn
                 key={stage}

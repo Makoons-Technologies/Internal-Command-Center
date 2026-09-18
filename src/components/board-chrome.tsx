@@ -45,9 +45,12 @@ export function BoardChrome({
 
   return (
     <div
+      data-sales-viewport={fillViewport ? "" : undefined}
       className={cn(
         "bg-background text-foreground",
-        fillViewport ? "h-dvh overflow-hidden" : "min-h-screen",
+        fillViewport
+          ? "fixed inset-0 flex flex-col overflow-hidden"
+          : "min-h-screen",
       )}
     >
       <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
@@ -83,7 +86,7 @@ export function BoardChrome({
       <div
         className={cn(
           "lg:pl-72",
-          fillViewport && "flex h-full min-h-0 min-w-0 flex-col",
+          fillViewport && "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
         )}
       >
         <header
@@ -122,7 +125,7 @@ export function BoardChrome({
           className={cn(
             "px-4 pt-1 pb-8 sm:px-6 sm:pb-10",
             fillViewport &&
-              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-3 sm:pb-4",
+              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-2 sm:pb-3",
           )}
         >
           {children}
