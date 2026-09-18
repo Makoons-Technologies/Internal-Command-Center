@@ -5,12 +5,14 @@ import { BoardChrome } from "@/components/board-chrome";
 export async function BoardShell({
   title,
   hideTitle = false,
+  fillViewport = false,
   seedOk,
   cardCount,
   children,
 }: {
   title: string;
   hideTitle?: boolean;
+  fillViewport?: boolean;
   seedOk: boolean;
   cardCount: number;
   children: ReactNode;
@@ -20,6 +22,7 @@ export async function BoardShell({
     <BoardChrome
       title={title}
       hideTitle={hideTitle}
+      fillViewport={fillViewport}
       brand={
         <div>
           <p className="font-heading text-lg leading-none font-medium tracking-tight">

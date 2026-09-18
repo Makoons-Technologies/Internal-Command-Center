@@ -1,6 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type RefObject,
+} from "react";
 import Link from "next/link";
 import {
   closestCorners,
@@ -113,6 +120,47 @@ const boardCollision: CollisionDetection = (args) => {
   if (rectHits.length > 0) return rectHits;
   return closestCorners(args);
 };
+
+function useHorizontalBoardWheel(scrollerRef: RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const node = scrollerRef.current;
+    if (!node) return;
+    const scroller: HTMLDivElement = node;
+
+    function onWheel(event: WheelEvent) {
+      if (event.ctrlKey || event.metaKey) return;
+
+      const deltaX =
+        event.shiftKey && Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+          ? event.deltaY
+          : event.deltaX;
+      if (Math.abs(deltaX) > Math.abs(event.deltaY) || event.shiftKey) {
+        if (scroller.scrollWidth <= scroller.clientWidth + 1) return;
+        event.preventDefault();
+        scroller.scrollLeft += deltaX;
+        return;
+      }
+
+      const column = (event.target as Element | null)?.closest?.(
+        "[data-column-scroll]",
+      );
+      if (column instanceof HTMLElement) {
+        const goingUp = event.deltaY < 0;
+        const canScroll = goingUp
+          ? column.scrollTop > 0
+          : column.scrollTop + column.clientHeight < column.scrollHeight - 1;
+        if (canScroll) return;
+      }
+
+      if (scroller.scrollWidth <= scroller.clientWidth + 1) return;
+      event.preventDefault();
+      scroller.scrollLeft += event.deltaY;
+    }
+
+    scroller.addEventListener("wheel", onWheel, { passive: false });
+    return () => scroller.removeEventListener("wheel", onWheel);
+  }, [scrollerRef]);
+}
 
 function columnTone(stage: PipelineStage) {
   if (stage === "won") return "border-[color-mix(in_oklch,var(--sage),var(--border)_45%)]";
@@ -272,12 +320,12 @@ function StageColumn({
     <section
       ref={setNodeRef}
       className={cn(
-        "flex w-72 shrink-0 flex-col rounded-2xl border bg-muted/35",
+        "flex h-full min-h-0 w-72 shrink-0 flex-col rounded-2xl border bg-muted/35",
         columnTone(stage),
         isOver && "bg-muted/70 ring-2 ring-primary/25",
       )}
     >
-      <header className="flex items-start justify-between gap-2 px-3 pt-3 pb-2">
+      <header className="flex shrink-0 items-start justify-between gap-2 px-3 pt-3 pb-2">
         <div className="min-w-0">
           {editing ? (
             <Input
@@ -318,7 +366,10 @@ function StageColumn({
           </p>
         </div>
       </header>
-      <div className="flex min-h-48 flex-1 flex-col gap-2 px-2 pb-3">
+      <div
+        data-column-scroll
+        className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2 pb-3"
+      >
         {deals.map((deal) => (
           <DraggableDealCard
             key={deal.id}
@@ -331,7 +382,7 @@ function StageColumn({
           />
         ))}
         {deals.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border px-3 py-8 text-center text-xs text-muted-foreground">
+          <p className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border px-3 py-8 text-center text-xs text-muted-foreground">
             Drop deals here
           </p>
         ) : null}
@@ -355,6 +406,8 @@ export function SalesPipeline({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const suppressClick = useRef(false);
+  const boardRef = useRef<HTMLDivElement>(null);
+  useHorizontalBoardWheel(boardRef);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -476,8 +529,8 @@ export function SalesPipeline({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">
             Drag shops between stages. Existing Springfield businesses seed the
@@ -502,6 +555,7 @@ export function SalesPipeline({
         </div>
       </div>
 
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <DndContext
         sensors={sensors}
         collisionDetection={boardCollision}
@@ -512,8 +566,14 @@ export function SalesPipeline({
         }}
         onDragEnd={handleDragEnd}
       >
-        <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
-          <div className="flex min-w-max items-stretch gap-3">
+        <div
+          ref={boardRef}
+          role="region"
+          aria-label="Pipeline stages"
+          tabIndex={0}
+          className="pipeline-h-scroll -mx-4 flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-1 sm:-mx-6 sm:px-6"
+        >
+          <div className="flex min-h-0 w-max min-w-full flex-1 items-stretch gap-3">
             {PIPELINE_STAGES.map((stage) => (
               <StageColumn
                 key={stage}
@@ -542,6 +602,7 @@ export function SalesPipeline({
           ) : null}
         </DragOverlay>
       </DndContext>
+      </div>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="sm:max-w-md">

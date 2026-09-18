@@ -29,12 +29,14 @@ function Rail({
 export function BoardChrome({
   title,
   hideTitle = false,
+  fillViewport = false,
   brand,
   footer,
   children,
 }: {
   title: string;
   hideTitle?: boolean;
+  fillViewport?: boolean;
   brand: ReactNode;
   footer: ReactNode;
   children: ReactNode;
@@ -42,7 +44,12 @@ export function BoardChrome({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div
+      className={cn(
+        "bg-background text-foreground",
+        fillViewport ? "h-dvh overflow-hidden" : "min-h-screen",
+      )}
+    >
       <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
         <Rail brand={brand} footer={footer} />
       </aside>
@@ -73,10 +80,15 @@ export function BoardChrome({
         </div>
       ) : null}
 
-      <div className="lg:pl-72">
+      <div
+        className={cn(
+          "lg:pl-72",
+          fillViewport && "flex h-full min-h-0 min-w-0 flex-col",
+        )}
+      >
         <header
           className={cn(
-            "flex items-center justify-between gap-3 px-4 py-3 sm:px-6",
+            "flex shrink-0 items-center justify-between gap-3 px-4 py-3 sm:px-6",
             hideTitle ? "lg:py-4" : "border-b border-border",
           )}
         >
@@ -106,7 +118,15 @@ export function BoardChrome({
             <span className="hidden text-sm sm:inline">Joseph</span>
           </div>
         </header>
-        <main className="px-4 pt-1 pb-8 sm:px-6 sm:pb-10">{children}</main>
+        <main
+          className={cn(
+            "px-4 pt-1 pb-8 sm:px-6 sm:pb-10",
+            fillViewport &&
+              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-3 sm:pb-4",
+          )}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

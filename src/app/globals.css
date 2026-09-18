@@ -140,3 +140,28 @@
     color: var(--popover-foreground);
   }
 }
+
+/* Always-visible gutter so later pipeline stages stay reachable. */
+.pipeline-h-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--foreground) 32%, transparent)
+    color-mix(in oklch, var(--muted) 70%, transparent);
+}
+
+.pipeline-h-scroll::-webkit-scrollbar {
+  height: 0.7rem;
+}
+
+.pipeline-h-scroll::-webkit-scrollbar-track {
+  background: color-mix(in oklch, var(--muted) 80%, transparent);
+  border-radius: 999px;
+}
+
+.pipeline-h-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--foreground) 28%, transparent);
+  border-radius: 999px;
+}

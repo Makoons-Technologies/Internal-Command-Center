@@ -10,7 +10,12 @@ export default async function SalesPipelinePage() {
   ]);
 
   return (
-    <BoardShell title="Sales pipeline" seedOk={seed.ok} cardCount={seed.count}>
+    <BoardShell
+      title="Sales pipeline"
+      fillViewport
+      seedOk={seed.ok}
+      cardCount={seed.count}
+    >
       <SalesPipeline businesses={businesses} labels={labels} />
     </BoardShell>
   );
